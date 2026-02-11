@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Hub | Advanced Portal</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-deep: #0a0f1d;
+            --panel-bg: #161e31;
+            --accent-glow: #00d4ff;
+            --text-pure: #ffffff;
+            --text-muted: #a0aec0;
+            --success: #00ff88;
+            --danger: #ff4d4d;
+            --warning: #f59e0b;
+        }
+
+        /* --- STYLES --- */
+        body { background-color: var(--bg-deep); color: var(--text-pure); font-family: 'Segoe UI', sans-serif; margin: 0; }
+        .dashboard-container { max-width: 1400px; margin: 20px auto; background: var(--panel-bg); border-radius: 12px; padding: 25px; border: 1px solid #2d3748; }
+        .header-section { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 25px; }
+        .filter-bar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; background: #0d1117; padding: 15px; border-radius: 8px; }
+        input, select { background: #1a202c; border: 1px solid #4a5568; color: white; padding: 10px; border-radius: 6px; }
+        .btn { padding: 10px 15px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .btn-pdf { background: var(--accent-glow); color: #000; }
+        .btn-delete { background: rgba(255, 77, 77, 0.1); color: var(--danger); border: 1px solid var(--danger); font-size: 0.7rem; padding: 5px 10px; }
+        .btn-action { padding: 6px 12px; border-radius: 4px; border: none; cursor: pointer; font-weight: bold; font-size: 0.75rem; margin-right: 4px; }
+        .btn-exit { background: #059669; color: white; }
+        .btn-lock { background: var(--warning); color: white; }
+        .btn-unlock { background: #4b5563; color: white; }
+        .btn-block { background: var(--danger); color: white; }
+        .tabs { display: flex; gap: 5px; }
+        .tab-trigger { padding: 12px 25px; background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-weight: bold; border-radius: 8px 8px 0 0; }
+        .tab-trigger.active { background: #1a202c; color: var(--accent-glow); border-bottom: 3px solid var(--accent-glow); }
+        .content-box { background: #1a202c; padding: 20px; border-radius: 0 0 8px 8px; min-height: 400px; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; color: var(--text-muted); padding: 15px; border-bottom: 2px solid #2d3748; font-size: 0.8rem; }
+        td { padding: 15px; border-bottom: 1px solid #2d3748; font-size: 0.9rem; }
+        .otp-badge { background: rgba(0, 212, 255, 0.1); color: var(--accent-glow); padding: 5px 10px; border-radius: 4px; font-family: monospace; border: 1px solid var(--accent-glow); }
+        .badge { padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; border: 1px solid; }
+        .badge-in { border-color: var(--success); color: var(--success); }
+        .badge-out { border-color: var(--text-muted); color: var(--text-muted); }
+
+        /* --- NEW STATISTICS STYLES --- */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .stat-card { background: #0d1117; padding: 25px; border-radius: 12px; border: 1px solid #2d3748; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .stat-number { font-size: 3rem; font-weight: 800; color: var(--accent-glow); margin: 10px 0; text-shadow: 0 0 20px rgba(0, 212, 255, 0.3); }
+        .stat-label { color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; font-size: 0.8rem; font-weight: bold; }
+        .chart-wrapper { background: #0d1117; padding: 20px; border-radius: 12px; border: 1px solid #2d3748; height: 400px; position: relative; }
+
+        /* ALERT STYLES */
+        #alertOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(4px); z-index: 999; opacity: 0; visibility: hidden; transition: all 0.3s ease; }
+        #customAlert { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -45%) scale(0.95); background: var(--panel-bg); border: 1px solid var(--accent-glow); padding: 30px; border-radius: 16px; z-index: 1000; text-align: center; box-shadow: 0 0 40px rgba(0, 212, 255, 0.2); width: 85%; max-width: 400px; opacity: 0; visibility: hidden; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        #alertOverlay.show, #customAlert.show { opacity: 1; visibility: visible; }
+        #customAlert.show { transform: translate(-50%, -50%) scale(1); }
+        #alertMsg { margin-bottom: 25px; line-height: 1.6; color: var(--text-pure); font-size: 1.1rem; }
+        .alert-btns { display: flex; gap: 10px; justify-content: center; }
+    </style>
+</head>
+<body>
+
+<div id="alertOverlay"></div>
+<div id="customAlert">
+    <div id="alertMsg"></div>
+    <div class="alert-btns" id="alertActions"></div>
+</div>
+
+<div class="dashboard-container">
+    <div class="header-section">
+        <h1>SECURITY CENTRAL</h1>
+        <button onclick="window.print()" class="btn btn-pdf">Generate PDF Report</button>
+    </div>
+
+    <div class="filter-bar" id="mainFilters">
+        <input type="text" id="nameSearch" placeholder="Search Name..." onkeyup="applyFilters()">
+        <input type="date" id="dateFilter" onchange="applyFilters()">
+        <select id="statusFilter" onchange="applyFilters()">
+            <option value="ALL">All Status</option>
+            <option value="INSIDE">Still Inside</option>
+            <option value="EXITED">Exited</option>
+        </select>
+        <button onclick="clearFilters()" class="btn" style="background:#334155; color:white;">Reset</button>
+    </div>
+
+    <div class="tabs">
+        <button class="tab-trigger active" onclick="switchTab(event, 'stats-tab')">📊 DASHBOARD</button>
+        <button class="tab-trigger" onclick="switchTab(event, 'live-tab')">LIVE MONITOR</button>
+        <button class="tab-trigger" onclick="switchTab(event, 'logs-tab')">COMPLETE LOGS</button>
+        <button class="tab-trigger" onclick="switchTab(event, 'blacklist-tab')">BLACKLIST</button>
+    </div>
+
+    <div class="content-box">
+        
+        <div id="stats-tab" class="tab-content">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <span class="stat-label">Currently Inside</span>
+                    <span class="stat-number" id="statInside">0</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Daily Entries</span>
+                    <span class="stat-number" id="statDaily">0</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Total All Time</span>
+                    <span class="stat-number" id="statTotal">0</span>
+                </div>
+            </div>
+            <div class="chart-wrapper">
+                <canvas id="trafficChart"></canvas>
+            </div>
+        </div>
+
+        <div id="live-tab" class="tab-content" style="display:none;">
+            <table>
+                <thead><tr><th>Name</th><th>OTP</th><th>Purpose</th><th>Check-In</th><th>Admin Controls</th></tr></thead>
+                <tbody id="liveBody"></tbody>
+            </table>
+        </div>
+
+        <div id="logs-tab" class="tab-content" style="display:none;">
+            <table>
+                <thead><tr><th>Date</th><th>Name</th><th>In</th><th>Out</th><th>Status</th><th>Actions</th></tr></thead>
+                <tbody id="logsBody"></tbody>
+            </table>
+        </div>
+
+        <div id="blacklist-tab" class="tab-content" style="display:none;">
+            <table>
+                <thead><tr><th>Blocked Name</th><th>Phone Number</th><th>Actions</th></tr></thead>
+                <tbody id="blacklistBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <button id="logoutBtn" style="width: 100%; margin-top: 20px; padding: 15px; background: #334155; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">Secure Logout</button>
+</div>
+
+<script type="module">
+    import { db, auth } from './firebase-config.js';
+    import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { collection, query, orderBy, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, where, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    let trafficChartInstance = null; // Store chart instance to update it
+
+    // --- ALERT ENGINE ---
+    window.showAdminAlert = (msg, onConfirm = null) => {
+        const msgEl = document.getElementById('alertMsg');
+        const actionsEl = document.getElementById('alertActions');
+        msgEl.innerHTML = msg;
+        actionsEl.innerHTML = '';
+
+        if (onConfirm) {
+            const yesBtn = document.createElement('button');
+            yesBtn.className = 'btn'; yesBtn.style.background = 'var(--accent-glow)'; yesBtn.style.color = '#000'; yesBtn.innerText = 'Confirm';
+            yesBtn.onclick = () => { onConfirm(); closeAdminAlert(); };
+            const noBtn = document.createElement('button');
+            noBtn.className = 'btn'; noBtn.style.background = '#334155'; noBtn.style.color = '#fff'; noBtn.innerText = 'Cancel';
+            noBtn.onclick = closeAdminAlert;
+            actionsEl.appendChild(noBtn); actionsEl.appendChild(yesBtn);
+        } else {
+            const okBtn = document.createElement('button');
+            okBtn.className = 'btn'; okBtn.style.background = 'var(--accent-glow)'; okBtn.style.color = '#000'; okBtn.innerText = 'OK';
+            okBtn.onclick = closeAdminAlert;
+            actionsEl.appendChild(okBtn);
+        }
+        document.getElementById('alertOverlay').classList.add('show');
+        document.getElementById('customAlert').classList.add('show');
+    };
+
+    window.closeAdminAlert = () => {
+        document.getElementById('alertOverlay').classList.remove('show');
+        document.getElementById('customAlert').classList.remove('show');
+    };
+
+    // --- ACTIONS ---
+    window.adminForceExit = (id) => { showAdminAlert("Force checkout for this visitor?", async () => await updateDoc(doc(db, "entries", id), { status: "EXITED", outTime: serverTimestamp() })); };
+    window.toggleLock = async (id, status) => { showAdminAlert(status ? "Unlock exit?" : "Lock exit?", async () => await updateDoc(doc(db, "entries", id), { isLocked: !status })); };
+    window.toggleBlock = async (phone, status) => {
+        showAdminAlert(status ? "Unblock User?" : "BAN User?", async () => {
+            const q = query(collection(db, "entries"), where("phone", "==", phone));
+            const snap = await getDocs(q);
+            const batch = writeBatch(db);
+            snap.forEach(d => batch.update(d.ref, { isBlocked: !status }));
+            await batch.commit();
+            showAdminAlert(status ? "User Unblocked." : "User added to Blacklist.");
+        });
+    };
+    window.deleteEntry = (id) => { showAdminAlert("<span style='color:var(--danger)'>Permanently delete?</span>", async () => await deleteDoc(doc(db, "entries", id))); };
+
+    // --- TAB LOGIC ---
+    window.switchTab = (e, id) => {
+        document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+        document.querySelectorAll('.tab-trigger').forEach(t => t.classList.remove('active'));
+        document.getElementById(id).style.display = 'block';
+        e.currentTarget.classList.add('active');
+        
+        // Hide filters on dashboard, show on others
+        document.getElementById('mainFilters').style.display = (id === 'stats-tab') ? 'none' : 'flex';
+    };
+
+    // --- FILTER LOGIC ---
+    window.applyFilters = () => {
+        const nameInput = document.getElementById("nameSearch").value.toUpperCase();
+        const dateInput = document.getElementById("dateFilter").value;
+        const statusInput = document.getElementById("statusFilter").value;
+        
+        const rows = document.querySelectorAll("#logsBody tr");
+        rows.forEach(row => {
+            const name = row.cells[1].textContent.toUpperCase();
+            const date = row.getAttribute("data-date");
+            const status = row.getAttribute("data-status");
+
+            const matchName = name.includes(nameInput);
+            const matchDate = !dateInput || date === dateInput;
+            const matchStatus = statusInput === "ALL" || status === statusInput;
+
+            row.style.display = (matchName && matchDate && matchStatus) ? "" : "none";
+        });
+    };
+    window.clearFilters = () => {
+        document.getElementById("nameSearch").value = "";
+        document.getElementById("dateFilter").value = "";
+        document.getElementById("statusFilter").value = "ALL";
+        applyFilters();
+    };
+
+    // --- CHART & DATA LOGIC ---
+    function updateStatsAndChart(docs) {
+        let insideCount = 0;
+        let todayCount = 0;
+        let totalCount = docs.length;
+        
+        // Prepare array for 24 hours (index 0-23)
+        let hourlyTraffic = new Array(24).fill(0);
+        
+        const todayStr = new Date().toISOString().split('T')[0];
+
+        docs.forEach(d => {
+            const data = d.data();
+            const entryDate = data.inTime ? new Date(data.inTime.seconds * 1000) : new Date();
+            const entryDateStr = entryDate.toISOString().split('T')[0];
+            const hour = entryDate.getHours();
+
+            // Stats Logic
+            if(data.status === 'INSIDE') insideCount++;
+            if(entryDateStr === todayStr) {
+                todayCount++;
+                // Add to hourly chart data
+                hourlyTraffic[hour]++;
+            }
+        });
+
+        // DOM Updates
+        document.getElementById('statInside').innerText = insideCount;
+        document.getElementById('statDaily').innerText = todayCount;
+        document.getElementById('statTotal').innerText = totalCount;
+
+        // Chart Update
+        const ctx = document.getElementById('trafficChart').getContext('2d');
+        
+        if(trafficChartInstance) {
+            trafficChartInstance.destroy();
+        }
+
+        trafficChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: Array.from({length: 24}, (_, i) => `${i}:00`),
+                datasets: [{
+                    label: "Today's Visitor Traffic (Hourly)",
+                    data: hourlyTraffic,
+                    backgroundColor: 'rgba(0, 212, 255, 0.6)',
+                    borderColor: '#00d4ff',
+                    borderWidth: 1,
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: { beginAtZero: true, grid: { color: '#2d3748' }, ticks: { color: '#a0aec0' } },
+                    x: { grid: { display: false }, ticks: { color: '#a0aec0' } }
+                },
+                plugins: {
+                    legend: { labels: { color: 'white' } }
+                }
+            }
+        });
+    }
+
+    // --- MAIN LISTENER ---
+    onAuthStateChanged(auth, (user) => {
+        if (!user) { window.location.href = 'login.html'; }
+        else {
+            const q = query(collection(db, "entries"), orderBy("inTime", "desc"));
+            onSnapshot(q, (snap) => {
+                const live = document.getElementById('liveBody');
+                const logs = document.getElementById('logsBody');
+                const blacklist = document.getElementById('blacklistBody');
+                
+                live.innerHTML = ''; logs.innerHTML = ''; blacklist.innerHTML = '';
+                const uniqueBlocked = new Set();
+                
+                // 1. Send all docs to the stats function
+                updateStatsAndChart(snap.docs);
+
+                // 2. Populate Tables
+                snap.forEach(snapDoc => {
+                    const d = snapDoc.data();
+                    const id = snapDoc.id;
+                    const isLocked = d.isLocked || false;
+                    const isBlocked = d.isBlocked || false;
+                    const fullDate = d.inTime ? new Date(d.inTime.seconds * 1000) : new Date();
+                    const dateStr = fullDate.toISOString().split('T')[0];
+                    const displayDate = fullDate.toLocaleDateString();
+                    const inT = fullDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    const outT = d.outTime ? new Date(d.outTime.seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '---';
+
+                    if (d.status === 'INSIDE') {
+                        live.innerHTML += `<tr>
+                            <td><b>${d.name}</b><br><small>${d.unit}</small></td>
+                            <td><span class="otp-badge">${d.otp || '----'}</span></td>
+                            <td>${d.purpose}</td>
+                            <td style="color:var(--success)">${inT}</td>
+                            <td>
+                                <button class="btn-action btn-exit" onclick="adminForceExit('${id}')">Exit</button>
+                                <button class="btn-action ${isLocked ? 'btn-unlock' : 'btn-lock'}" onclick="toggleLock('${id}', ${isLocked})">${isLocked ? '🔓' : '🔒'}</button>
+                                <button class="btn-action btn-block" onclick="toggleBlock('${d.phone}', ${isBlocked})">🚫</button>
+                            </td>
+                        </tr>`;
+                    }
+
+                    logs.innerHTML += `<tr data-date="${dateStr}" data-status="${d.status}">
+                        <td>${displayDate}</td>
+                        <td><b>${d.name}</b></td>
+                        <td>${inT}</td>
+                        <td>${outT}</td>
+                        <td><span class="badge ${d.status === 'INSIDE' ? 'badge-in' : 'badge-out'}">${d.status}</span></td>
+                        <td><button class="btn-delete" onclick="deleteEntry('${id}')">Delete</button></td>
+                    </tr>`;
+
+                    if (isBlocked && !uniqueBlocked.has(d.phone)) {
+                        uniqueBlocked.add(d.phone);
+                        blacklist.innerHTML += `<tr>
+                            <td><b>${d.name}</b></td>
+                            <td>${d.phone}</td>
+                            <td><button class="btn-action btn-unlock" style="background:#2563eb" onclick="toggleBlock('${d.phone}', true)">✅ Unblock</button></td>
+                        </tr>`;
+                    }
+                });
+            });
+        }
+    });
+
+    document.getElementById('logoutBtn').onclick = () => signOut(auth);
+</script>
+</body>
+</html>

@@ -1,0 +1,113 @@
+:root {
+    --bg-deep: #0a0f1d;
+    --panel-bg: #161e31;
+    --accent-glow: #00d4ff;
+    --text-pure: #ffffff;
+    --text-muted: #a0aec0;
+    --success: #00ff88;
+    --danger: #ff4d4d;
+    --input-bg: #0d1117;
+}
+
+body {
+    background-color: var(--bg-deep);
+    color: var(--text-pure);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+
+.container {
+    background: var(--panel-bg);
+    width: 90%;
+    max-width: 500px;
+    padding: 40px;
+    border-radius: 16px;
+    border: 1px solid #2d3748;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    text-align: center;
+    animation: fadeIn 0.5s ease-out;
+}
+
+h1, h2 {
+    color: var(--accent-glow);
+    margin-bottom: 24px;
+    letter-spacing: 1px;
+}
+
+input, select {
+    width: 100%;
+    background: var(--input-bg);
+    border: 1px solid #4a5568;
+    color: white;
+    padding: 14px;
+    margin-bottom: 15px;
+    border-radius: 8px;
+    font-size: 1rem;
+    box-sizing: border-box;
+    transition: border-color 0.3s ease;
+}
+
+input:focus {
+    outline: none;
+    border-color: var(--accent-glow);
+}
+
+button {
+    width: 100%;
+    padding: 14px;
+    border-radius: 8px;
+    border: none;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: transform 0.2s, background 0.2s;
+    margin-bottom: 10px;
+}
+
+.btn-in {
+    background: var(--accent-glow);
+    color: #0a0f1d;
+}
+
+.btn-out {
+    background: transparent;
+    border: 2px solid var(--accent-glow);
+    color: var(--accent-glow);
+}
+
+button:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.1);
+}
+
+.btn-back {
+    background: #334155;
+    color: white;
+    margin-top: 10px;
+}
+
+.card {
+    background: var(--input-bg);
+    padding: 20px;
+    border-radius: 12px;
+    margin-top: 20px;
+    text-align: left;
+    border-left: 4px solid var(--accent-glow);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+input:invalid:not(:placeholder-shown) {
+    border-color: var(--danger);
+}
+
+input:valid:not(:placeholder-shown) {
+    border-color: var(--success);
+}

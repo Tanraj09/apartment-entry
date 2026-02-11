@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Check Out | Security Central</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* FEATURE: FLUID MODAL ANIMATIONS */
+        #alertOverlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(4px);
+            z-index: 999;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        #customAlert {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -45%) scale(0.95);
+            background: var(--panel-bg);
+            border: 1px solid var(--accent-glow);
+            padding: 30px;
+            border-radius: 16px;
+            z-index: 1000;
+            text-align: center;
+            box-shadow: 0 0 40px rgba(0, 212, 255, 0.2);
+            width: 85%;
+            max-width: 380px;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        #alertOverlay.show, #customAlert.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        #customAlert.show {
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        #alertMsg { margin-bottom: 25px; line-height: 1.6; color: var(--text-pure); font-size: 1.1rem; }
+
+        /* FEATURE: OTP INPUT STYLING */
+        #otpInputArea { display: none; margin-top: 15px; }
+        .otp-field {
+            text-align: center;
+            letter-spacing: 12px;
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: var(--accent-glow);
+            background: var(--input-bg);
+            border: 1px solid var(--accent-glow);
+            width: 100%;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        /* Display Area cards */
+        .card { margin-top: 20px; animation: slideUp 0.4s ease; border-left: 4px solid var(--accent-glow); padding: 20px; background: var(--panel-bg); border-radius: 12px; text-align: left; }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div id="alertOverlay" onclick="closeAlert()"></div>
+    <div id="customAlert">
+        <div id="alertMsg"></div>
+        
+        <div id="otpInputArea">
+            <input type="tel" id="userOtp" class="otp-field" placeholder="0000" maxlength="4" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+            <button id="verifyOtpBtn" class="btn-in">Verify & Exit</button>
+        </div>
+
+        <button id="closeAlertBtn" onclick="closeAlert()" class="btn-back" style="width: auto; min-width: 120px;">Close</button>
+    </div>
+
+    <div class="container">
+        <h2>Visitor Exit</h2>
+        <p style="color: var(--text-muted);">Find your record using your phone number.</p>
+
+        <input type="tel" id="phone" placeholder="Example: 0123456789" 
+               oninput="this.value = this.value.replace(/[^0-9]/g, '')" maxlength="15">
+        
+        <button id="findBtn" class="btn-out">Find My Info</button>
+
+        <div id="displayArea"></div>
+
+        <a href="index.html"><button class="btn-back">Back to Menu</button></a>
+    </div>
+
+    <script type="module">
+        import { db } from './firebase-config.js';
+        import { collection, query, where, getDocs, updateDoc, getDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        let activeDocId = null;
+        let activeCorrectOtp = null;
+
+        window.showAlert = (msg, isOtpMode = false, redirect = false) => {
+            document.getElementById('alertMsg').innerText = msg;
+            document.getElementById('otpInputArea').style.display = isOtpMode ? 'block' : 'none';
+            document.getElementById('closeAlertBtn').style.display = isOtpMode ? 'none' : 'inline-block';
+            
+            document.getElementById('alertOverlay').classList.add('show');
+            document.getElementById('customAlert').classList.add('show');
+            window.shouldRedirect = redirect;
+        };
+
+        window.closeAlert = () => {
+            document.getElementById('alertOverlay').classList.remove('show');
+            document.getElementById('customAlert').classList.remove('show');
+            if(window.shouldRedirect) {
+                setTimeout(() => window.location.href = "index.html", 300);
+            }
+        };
+
+        document.getElementById("findBtn").addEventListener("click", async () => {
+            const phoneInput = document.getElementById("phone").value.trim();
+            const area = document.getElementById("displayArea");
+            
+            if(!phoneInput || phoneInput.length < 10) {
+                return showAlert("Please enter a valid phone number.");
+            }
+
+            area.innerHTML = "<p style='color: var(--accent-glow);'>Searching database...</p>";
+
+            try {
+                // FEATURE: CHECK IF USER IS BLACKLISTED FIRST
+                const blockQ = query(collection(db, "entries"), where("phone", "==", phoneInput), where("isBlocked", "==", true));
+                const blockSnap = await getDocs(blockQ);
+                if (!blockSnap.empty) {
+                    area.innerHTML = "";
+                    return showAlert("🚫 ACCESS DENIED: This number is blacklisted. Contact security.");
+                }
+
+                const q = query(
+                    collection(db, "entries"),
+                    where("phone", "==", phoneInput),
+                    where("status", "==", "INSIDE")
+                );
+
+                const snapshot = await getDocs(q);
+                area.innerHTML = ""; 
+
+                if (snapshot.empty) {
+                    return showAlert("No active record found.");
+                }
+
+                snapshot.forEach((docSnap) => {
+                    const data = docSnap.data();
+                    const card = document.createElement("div");
+                    card.className = "card";
+                    card.innerHTML = `
+                        <h3 style="color: var(--accent-glow); margin-top:0;">${data.name}</h3>
+                        <p><strong>Unit:</strong> ${data.unit}</p>
+                        <p><strong>Purpose:</strong> ${data.purpose}</p>
+                        <button class="btn-in" onclick="triggerOtpStep('${docSnap.id}', '${data.otp}')">Confirm Exit</button>
+                    `;
+                    area.appendChild(card);
+                });
+
+            } catch (error) {
+                console.error("Search Error:", error);
+                showAlert("System Error. Please check connection.");
+            }
+        });
+
+        window.triggerOtpStep = (docId, correctOtp) => {
+            activeDocId = docId;
+            activeCorrectOtp = correctOtp;
+            document.getElementById('userOtp').value = "";
+            showAlert("Verification Required: Enter your 4-digit Exit OTP.", true);
+        };
+
+        document.getElementById("verifyOtpBtn").addEventListener("click", async () => {
+            const enteredOtp = document.getElementById("userOtp").value.trim();
+
+            try {
+                // FEATURE: REAL-TIME LOCK CHECK
+                // Fetches the latest document state to see if admin locked it while visitor was waiting
+                const docRef = doc(db, "entries", activeDocId);
+                const docSnap = await getDoc(docRef);
+                
+                if (docSnap.exists() && docSnap.data().isLocked) {
+                    return alert("🔒 EXIT DENIED: Your exit has been locked by Security. Please report to the front desk.");
+                }
+
+                if (enteredOtp === activeCorrectOtp) {
+                    await updateDoc(docRef, {
+                        status: "EXITED",
+                        outTime: serverTimestamp()
+                    });
+                    showAlert("OTP Verified. Exit successful! Goodbye.", false, true);
+                } else {
+                    alert("Incorrect OTP! Please check your code.");
+                }
+            } catch (err) {
+                console.error("Exit Error:", err);
+                showAlert("Failed to confirm exit. Try again.");
+            }
+        });
+    </script>
+</body>
+</html>
